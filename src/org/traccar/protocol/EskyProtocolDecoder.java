@@ -37,7 +37,7 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
             .expression("..;")                   // header
             .number("d+;")                       // index
             .number("(d+);")                     // imei
-            .text("R;")                          // data type
+            .expression("R[G]?;")                // data type
             .number("(d+)[+;]")                  // satellites
             .number("(dd)(dd)(dd)")              // date
             .number("(dd)(dd)(dd)[+;]")          // time
@@ -51,6 +51,7 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+)[+;]")                  // odometer
             .groupEnd("?")
             .number("(d+)")                      // voltage
+            .number("[+;](d+)?")                  // message type
             .any()
             .compile();
 
@@ -87,6 +88,16 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
         }
 
         position.set(Position.KEY_BATTERY, parser.nextInt() * 0.001);
+
+        if (parser.hasNext(1)) {
+            int msgType = parser.nextInt();
+            if (msgType == 8) {
+                position.set(Position.KEY_ALARM, Position.ALARM_SOS);
+            }
+            if (msgType == 24) {
+                position.set(Position.KEY_ALARM, Position.ALARM_LOW_BATTERY);
+            }
+        }
 
         return position;
     }
