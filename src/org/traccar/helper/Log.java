@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 package org.traccar.helper;
 
-import org.traccar.Config;
+import org.traccar.config.Config;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -25,6 +25,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -162,12 +163,17 @@ public final class Log {
     }
 
     public static void setupDefaultLogger() {
-        File jarPath = new File(ClassLoader.getSystemClassLoader().getResource(".").getPath());
-        File logsPath = new File(jarPath, "logs");
-        if (!logsPath.exists() || !logsPath.isDirectory()) {
-            logsPath = jarPath;
+        String path = null;
+        URL url =  ClassLoader.getSystemClassLoader().getResource(".");
+        if (url != null) {
+            File jarPath = new File(url.getPath());
+            File logsPath = new File(jarPath, "logs");
+            if (!logsPath.exists() || !logsPath.isDirectory()) {
+                logsPath = jarPath;
+            }
+            path = new File(logsPath, "tracker-server.log").getPath();
         }
-        setupLogger(false, new File(logsPath, "tracker-server.log").getPath(), Level.WARNING.getName(), false, true);
+        setupLogger(path == null, path, Level.WARNING.getName(), false, true);
     }
 
     public static void setupLogger(Config config) {
@@ -237,7 +243,7 @@ public final class Log {
                         s.append("*");
                     } else {
                         file = element.getFileName();
-                        s.append(file.substring(0, file.length() - 5)); // remove ".java"
+                        s.append(file, 0, file.length() - 5); // remove ".java"
                         count -= 1;
                     }
                     s.append(":").append(element.getLineNumber());

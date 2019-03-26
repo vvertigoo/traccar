@@ -52,6 +52,14 @@ public class ProtocolTest extends BaseTest {
         return builder.toString();
     }
 
+    protected ByteBuf concatenateBuffers(ByteBuf... buffers) {
+        ByteBuf result = Unpooled.buffer();
+        for (ByteBuf buf : buffers) {
+            result.writeBytes(buf);
+        }
+        return result;
+    }
+
     protected ByteBuf binary(String... data) {
         return Unpooled.wrappedBuffer(DataConverter.parseHex(concatenateStrings(data)));
     }
@@ -165,6 +173,7 @@ public class ProtocolTest extends BaseTest {
 
             } else {
 
+                assertNotNull(position.getServerTime());
                 assertNotNull(position.getFixTime());
                 assertTrue("year > 1999", position.getFixTime().after(new Date(915148800000L)));
                 assertTrue("time < +25 hours",

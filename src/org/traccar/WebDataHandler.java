@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ package org.traccar;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.inject.assistedinject.Assisted;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.netty.channel.ChannelHandler;
+import org.traccar.config.Config;
+import org.traccar.config.Keys;
 import org.traccar.database.IdentityManager;
 import org.traccar.helper.Checksum;
 import org.traccar.model.Device;
@@ -29,6 +29,7 @@ import org.traccar.model.Group;
 import javax.inject.Inject;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
 import java.util.HashMap;
 import java.util.Map;
 import java.io.UnsupportedEncodingException;
@@ -39,9 +40,8 @@ import java.util.Formatter;
 import java.util.Locale;
 import java.util.TimeZone;
 
+@ChannelHandler.Sharable
 public class WebDataHandler extends BaseDataHandler {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(WebDataHandler.class);
 
     private static final String KEY_POSITION = "position";
     private static final String KEY_DEVICE = "device";
@@ -51,21 +51,18 @@ public class WebDataHandler extends BaseDataHandler {
     private final Client client;
 
     private final String url;
+    private final String header;
     private final boolean json;
-
-    public interface Factory {
-        WebDataHandler create(String url, boolean json);
-    }
 
     @Inject
     public WebDataHandler(
-            IdentityManager identityManager, ObjectMapper objectMapper, Client client,
-            @Assisted String url, @Assisted boolean json) {
+            Config config, IdentityManager identityManager, ObjectMapper objectMapper, Client client) {
         this.identityManager = identityManager;
         this.objectMapper = objectMapper;
         this.client = client;
-        this.url = url;
-        this.json = json;
+        this.url = config.getString(Keys.FORWARD_URL);
+        this.header = config.getString(Keys.FORWARD_HEADER);
+        this.json = config.getBoolean(Keys.FORWARD_JSON);
     }
 
     private static String formatSentence(Position position) {
@@ -157,19 +154,37 @@ public class WebDataHandler extends BaseDataHandler {
 
     @Override
     protected Position handlePosition(Position position) {
+
+        String url;
         if (json) {
-            client.target(url).request().async().post(Entity.json(prepareJsonPayload(position)));
+            url = this.url;
         } else {
             try {
-                client.target(formatRequest(position)).request().async().get();
+                url = formatRequest(position);
             } catch (UnsupportedEncodingException | JsonProcessingException e) {
-                LOGGER.warn("Forwarding formatting error", e);
+                throw new RuntimeException("Forwarding formatting error", e);
             }
         }
+
+        Invocation.Builder requestBuilder = client.target(url).request();
+
+        if (header != null && !header.isEmpty()) {
+            for (String line: header.split("\\r?\\n")) {
+                String[] values = line.split(":", 2);
+                requestBuilder.header(values[0].trim(), values[1].trim());
+            }
+        }
+
+        if (json) {
+            requestBuilder.async().post(Entity.json(prepareJsonPayload(position)));
+        } else {
+            requestBuilder.async().get();
+        }
+
         return position;
     }
 
-    protected Map<String, Object> prepareJsonPayload(Position position) {
+    private Map<String, Object> prepareJsonPayload(Position position) {
 
         Map<String, Object> data = new HashMap<>();
         Device device = identityManager.getById(position.getDeviceId());
