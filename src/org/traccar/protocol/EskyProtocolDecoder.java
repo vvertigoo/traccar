@@ -91,6 +91,9 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
 
         if (parser.hasNext(1)) {
             int msgType = parser.nextInt();
+            if (msgType == 0) {
+                return null;
+            }
             if (msgType == 8) {
                 position.set(Position.KEY_ALARM, Position.ALARM_SOS);
             }
